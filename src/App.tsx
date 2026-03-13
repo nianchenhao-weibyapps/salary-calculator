@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import Papa from 'papaparse';
 import { parse, differenceInMinutes, format } from 'date-fns';
-import { Upload, DollarSign, Clock, Users, FileText, Trash2, AlertCircle, X, Calendar, Edit2, RotateCcw, Download } from 'lucide-react';
+import { Upload, DollarSign, Clock, Users, FileText, Trash2, AlertCircle, X, Calendar, Edit2, RotateCcw, Download, Search } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
@@ -44,6 +44,8 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null);
   const [manualMinutes, setManualMinutes] = useState<Record<string, number>>({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleFileUpload = (file: File) => {
     Papa.parse(file, {
@@ -144,6 +146,13 @@ export default function App() {
 
     return Object.values(summaries).sort((a, b) => b.totalMinutes - a.totalMinutes);
   }, [data]);
+
+  const filteredEmployees = useMemo(() => {
+    return employeeSummaries.filter(emp => 
+      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.id.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [employeeSummaries, searchTerm]);
 
   const formatHours = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -369,15 +378,40 @@ export default function App() {
 
             {/* Employee Table */}
             <div className="bg-white rounded-3xl shadow-sm border border-zinc-100 overflow-hidden">
-              <div className="p-6 border-bottom border-zinc-100 flex items-center justify-between">
-                <h2 className="text-xl font-bold">員工結算清單</h2>
-                <button 
-                  onClick={() => setData([])}
-                  className="flex items-center gap-2 text-sm text-red-500 hover:text-red-600 font-medium transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  清除資料
-                </button>
+              <div className="p-8 border-b border-zinc-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-bold tracking-tight">員工結算清單</h2>
+                  <p className="text-sm text-zinc-400">共 {filteredEmployees.length} 位符合條件的員工</p>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input
+                      type="text"
+                      placeholder="搜尋姓名或編號..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/5 transition-all"
+                    />
+                    {searchTerm && (
+                      <button 
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={() => setShowClearConfirm(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl font-bold transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    清除資料
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -391,89 +425,111 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {employeeSummaries.map((emp) => {
-                      const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
-                      const isAdjusted = manualMinutes[emp.id] !== undefined;
+                    {filteredEmployees.length > 0 ? (
+                      filteredEmployees.map((emp) => {
+                        const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
+                        const isAdjusted = manualMinutes[emp.id] !== undefined;
 
-                      return (
-                        <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
-                          <td className="px-6 py-5">
-                            <div className="font-semibold text-lg">{emp.name}</div>
-                            <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <button 
-                              onClick={() => setSelectedEmployee(emp)}
-                              className="bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
-                            >
-                              {emp.records.length} 次
-                              <span className="text-[10px] bg-zinc-400 text-white px-1 rounded">查看</span>
-                            </button>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="text-sm text-zinc-500">{formatHours(emp.totalMinutes)}</div>
-                            <div className="text-[10px] text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-2">
-                              <div className="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all">
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  placeholder={Math.floor(emp.totalMinutes / 60).toString()}
-                                  value={isAdjusted ? Math.floor(currentMinutes / 60) : ""}
-                                  onChange={(e) => {
-                                    const h = parseInt(e.target.value.replace(/[^0-9]/g, '') || "0");
-                                    const m = currentMinutes % 60;
-                                    setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
-                                  }}
-                                  className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
-                                />
-                                <span className="text-[10px] text-zinc-400 font-bold">H</span>
-                                <span className="mx-1 text-zinc-300">|</span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  placeholder={(emp.totalMinutes % 60).toString()}
-                                  value={isAdjusted ? (currentMinutes % 60) : ""}
-                                  onChange={(e) => {
-                                    const m = Math.min(59, parseInt(e.target.value.replace(/[^0-9]/g, '') || "0"));
-                                    const h = Math.floor(currentMinutes / 60);
-                                    setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
-                                  }}
-                                  className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
-                                />
-                                <span className="text-[10px] text-zinc-400 font-bold">M</span>
+                        return (
+                          <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
+                            <td className="px-6 py-5">
+                              <div className="font-semibold text-lg">{emp.name}</div>
+                              <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
+                            </td>
+                            <td className="px-6 py-5">
+                              <button 
+                                onClick={() => setSelectedEmployee(emp)}
+                                className="bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                              >
+                                {emp.records.length} 次
+                                <span className="text-[10px] bg-zinc-400 text-white px-1 rounded">查看</span>
+                              </button>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="text-sm text-zinc-500">{formatHours(emp.totalMinutes)}</div>
+                              <div className="text-[10px] text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-2">
+                                <div className="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder={Math.floor(emp.totalMinutes / 60).toString()}
+                                    value={isAdjusted ? Math.floor(currentMinutes / 60) : ""}
+                                    onChange={(e) => {
+                                      const h = parseInt(e.target.value.replace(/[^0-9]/g, '') || "0");
+                                      const m = currentMinutes % 60;
+                                      setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
+                                    }}
+                                    className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                  />
+                                  <span className="text-[10px] text-zinc-400 font-bold">H</span>
+                                  <span className="mx-1 text-zinc-300">|</span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder={(emp.totalMinutes % 60).toString()}
+                                    value={isAdjusted ? (currentMinutes % 60) : ""}
+                                    onChange={(e) => {
+                                      const m = Math.min(59, parseInt(e.target.value.replace(/[^0-9]/g, '') || "0"));
+                                      const h = Math.floor(currentMinutes / 60);
+                                      setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
+                                    }}
+                                    className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                  />
+                                  <span className="text-[10px] text-zinc-400 font-bold">M</span>
+                                </div>
+                                {isAdjusted && (
+                                  <button 
+                                    onClick={() => {
+                                      const newManual = { ...manualMinutes };
+                                      delete newManual[emp.id];
+                                      setManualMinutes(newManual);
+                                    }}
+                                    className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
+                                    title="重設為系統計算"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 text-right">
+                              <div className={cn(
+                                "text-2xl font-bold transition-colors",
+                                isAdjusted ? "text-blue-600" : "text-zinc-900"
+                              )}>
+                                ${calculateSalary(currentMinutes).toLocaleString()}
                               </div>
                               {isAdjusted && (
-                                <button 
-                                  onClick={() => {
-                                    const newManual = { ...manualMinutes };
-                                    delete newManual[emp.id];
-                                    setManualMinutes(newManual);
-                                  }}
-                                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                                  title="重設為系統計算"
-                                >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
                               )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-24 text-center">
+                          <div className="flex flex-col items-center gap-3 text-zinc-400">
+                            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center">
+                              <Search className="w-8 h-8 opacity-20" />
                             </div>
-                          </td>
-                          <td className="px-6 py-5 text-right">
-                            <div className={cn(
-                              "text-2xl font-bold transition-colors",
-                              isAdjusted ? "text-blue-600" : "text-zinc-900"
-                            )}>
-                              ${calculateSalary(currentMinutes).toLocaleString()}
+                            <div className="space-y-1">
+                              <p className="font-bold text-zinc-900">找不到符合的結果</p>
+                              <p className="text-sm">請嘗試搜尋其他姓名或員工編號</p>
                             </div>
-                            {isAdjusted && (
-                              <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            <button 
+                              onClick={() => setSearchTerm('')}
+                              className="mt-2 text-sm text-blue-500 font-bold hover:underline"
+                            >
+                              清除搜尋條件
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -588,6 +644,58 @@ export default function App() {
                 >
                   關閉
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Clear Data Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowClearConfirm(false)}
+              className="absolute inset-0 bg-zinc-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 text-center space-y-6">
+                <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
+                  <Trash2 className="w-10 h-10" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-bold text-zinc-900">確認清除資料？</h3>
+                  <p className="text-zinc-500 leading-relaxed">
+                    是否清除目前所有的員工出勤資料並重新匯入？此動作將無法復原。
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button 
+                    onClick={() => {
+                      setData([]);
+                      setManualMinutes({});
+                      setSearchTerm('');
+                      setShowClearConfirm(false);
+                    }}
+                    className="w-full py-4 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-bold shadow-lg shadow-red-100 transition-all active:scale-95"
+                  >
+                    確認清除
+                  </button>
+                  <button 
+                    onClick={() => setShowClearConfirm(false)}
+                    className="w-full py-4 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-2xl font-bold transition-all active:scale-95"
+                  >
+                    取消
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
