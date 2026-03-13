@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import Papa from 'papaparse';
 import { parse, differenceInMinutes, format } from 'date-fns';
-import { Upload, DollarSign, Clock, Users, FileText, Trash2, AlertCircle, X, Calendar } from 'lucide-react';
+import { Upload, DollarSign, Clock, Users, FileText, Trash2, AlertCircle, X, Calendar, Edit2, RotateCcw, Download } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
@@ -34,6 +34,7 @@ interface EmployeeSummary {
     start: string;
     end: string;
     minutes: number;
+    isNextDay: boolean;
   }[];
 }
 
@@ -42,6 +43,7 @@ export default function App() {
   const [hourlyWage, setHourlyWage] = useState<number>(190); // Default minimum wage in Taiwan approx
   const [isDragging, setIsDragging] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null);
+  const [manualMinutes, setManualMinutes] = useState<Record<string, number>>({});
 
   const handleFileUpload = (file: File) => {
     Papa.parse(file, {
@@ -96,25 +98,45 @@ export default function App() {
       }
 
       try {
-        // Parse times. We assume the date is the same for start and end since it's a POS export for daily shifts.
-        // If shifts cross midnight, this might need adjustment, but standard POS exports usually split them or provide full timestamps.
-        const startTime = parse(row.上班時間, 'HH:mm', new Date());
-        const endTime = parse(row.下班時間, 'HH:mm', new Date());
-        
-        let minutes = differenceInMinutes(endTime, startTime);
-        
-        // Handle shifts crossing midnight (if end time is earlier than start time)
-        if (minutes < 0) {
-          minutes += 24 * 60;
+        // Clean time strings: remove "(隔日)" and any extra spaces
+        const cleanStart = row.上班時間?.replace(/\(.*\)/, '').trim();
+        const cleanEnd = row.下班時間?.replace(/\(.*\)/, '').trim();
+
+        if (!cleanStart || !cleanEnd) {
+          console.warn(`Row ${row.項次} is missing start or end time:`, row);
+          return;
         }
 
-        summaries[id].totalMinutes += minutes;
-        summaries[id].records.push({
-          date: row.打卡日期,
-          start: row.上班時間,
-          end: row.下班時間,
-          minutes
-        });
+        const startTime = parse(cleanStart, 'HH:mm', new Date());
+        const endTime = parse(cleanEnd, 'HH:mm', new Date());
+        
+        let minutes = differenceInMinutes(endTime, startTime);
+        let isNextDay = row.下班時間?.includes('隔日');
+        
+        // Handle shifts crossing midnight (if end time is earlier than start time)
+        // Or if the original string contained "(隔日)"
+        if (minutes < 0 || isNextDay) {
+          // If it was already positive but marked as (隔日), it means it's > 24h or just a long shift
+          // But usually (隔日) with a smaller HH:mm means +24h
+          if (minutes < 0) {
+            minutes += 24 * 60;
+            isNextDay = true;
+          } else if (isNextDay) {
+            // If it's something like 15:00 to 15:01(隔日), minutes is 1, but should be 24h + 1
+            minutes += 24 * 60;
+          }
+        }
+
+        if (!isNaN(minutes)) {
+          summaries[id].totalMinutes += minutes;
+          summaries[id].records.push({
+            date: row.打卡日期,
+            start: row.上班時間,
+            end: row.下班時間,
+            minutes,
+            isNextDay: !!isNextDay
+          });
+        }
       } catch (e) {
         console.warn(`Row ${row.項次} has invalid time format:`, row);
       }
@@ -133,6 +155,38 @@ export default function App() {
     return Math.round((minutes / 60) * hourlyWage);
   };
 
+  const handleExport = () => {
+    if (employeeSummaries.length === 0) return;
+
+    const exportData = employeeSummaries.map(emp => {
+      const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
+      const isAdjusted = manualMinutes[emp.id] !== undefined;
+      
+      return {
+        '員工姓名': emp.name,
+        '員工編號': emp.id,
+        '出勤次數': emp.records.length,
+        '系統計算工時': formatHours(emp.totalMinutes),
+        '系統計算分鐘': emp.totalMinutes,
+        '手動調整工時': isAdjusted ? formatHours(currentMinutes) : '未調整',
+        '最終結算分鐘': currentMinutes,
+        '設定時薪': hourlyWage,
+        '預估薪資': calculateSalary(currentMinutes)
+      };
+    });
+
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `薪資結算表_${format(new Date(), 'yyyyMMdd_HHmm')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-screen bg-[#F5F5F5] text-[#1A1A1A] font-sans p-4 md:p-8">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -141,65 +195,136 @@ export default function App() {
           <div>
             <h1 className="text-4xl font-bold tracking-tight text-zinc-900">員工出勤薪資計算</h1>
             <p className="text-zinc-500 mt-2">上傳 POS 匯出的 CSV 檔案，快速結算工時與薪資。</p>
+            <p className="text-amber-600 text-xs mt-1 font-medium">※ 此工具僅供計算參考，實際薪資計算請店家再自行核對確認</p>
           </div>
           
-          <div className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-zinc-200">
-            <div className="flex flex-col">
-              <label htmlFor="wage" className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                設定時薪 (TWD)
-              </label>
-              <div className="relative">
-                <DollarSign className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <input
-                  id="wage"
-                  type="text"
-                  inputMode="numeric"
-                  value={hourlyWage}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
-                    setHourlyWage(val === '' ? 0 : Number(val));
-                  }}
-                  className="pl-5 pr-2 py-1 text-xl font-medium focus:outline-none w-32"
-                />
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-zinc-200">
+              <div className="flex flex-col">
+                <label htmlFor="wage" className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
+                  設定時薪 (TWD)
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    id="wage"
+                    type="text"
+                    inputMode="numeric"
+                    value={hourlyWage}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
+                      setHourlyWage(val === '' ? 0 : Number(val));
+                    }}
+                    className="pl-5 pr-2 py-1 text-xl font-medium focus:outline-none w-32"
+                  />
+                </div>
               </div>
             </div>
+
+            {data.length > 0 && (
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-2xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95"
+              >
+                <Download className="w-5 h-5" />
+                匯出結算報表
+              </button>
+            )}
           </div>
         </header>
 
         {/* Main Content */}
         {data.length === 0 ? (
-          <div
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            className={cn(
-              "relative group cursor-pointer transition-all duration-300",
-              "border-2 border-dashed rounded-3xl p-12 md:p-24",
-              "flex flex-col items-center justify-center text-center space-y-6",
-              isDragging ? "border-zinc-900 bg-zinc-50 scale-[0.99]" : "border-zinc-200 bg-white hover:border-zinc-400"
-            )}
-            onClick={() => document.getElementById('file-upload')?.click()}
-          >
-            <input
-              id="file-upload"
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
-            />
-            <div className="w-20 h-20 bg-zinc-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <Upload className="w-10 h-10 text-zinc-400" />
+          <div className="space-y-8">
+            <div
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              className={cn(
+                "relative group cursor-pointer transition-all duration-500",
+                "border-2 border-dashed rounded-[2.5rem] p-12 md:p-32",
+                "flex flex-col items-center justify-center text-center",
+                "overflow-hidden",
+                isDragging 
+                  ? "border-blue-500 bg-blue-50/50 scale-[0.98] shadow-2xl shadow-blue-100" 
+                  : "border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-xl hover:shadow-zinc-100"
+              )}
+              onClick={() => document.getElementById('file-upload')?.click()}
+            >
+              {/* Decorative background elements */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-zinc-100 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              
+              <input
+                id="file-upload"
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+              />
+              
+              <div className={cn(
+                "w-24 h-24 rounded-3xl flex items-center justify-center transition-all duration-500 mb-8",
+                isDragging ? "bg-blue-500 text-white rotate-12 scale-110" : "bg-zinc-100 text-zinc-400 group-hover:bg-zinc-900 group-hover:text-white group-hover:-rotate-6"
+              )}>
+                <Upload className="w-10 h-10" />
+              </div>
+
+              <div className="space-y-4 relative z-10">
+                <h3 className="text-3xl font-bold tracking-tight text-zinc-900">
+                  開始計算薪資
+                </h3>
+                <p className="text-zinc-500 max-w-md mx-auto leading-relaxed">
+                  將您的 POS 系統匯出的 <span className="font-bold text-zinc-900">CSV 檔案</span> 拖曳至此處，或點擊區塊進行上傳。
+                </p>
+              </div>
+
+              <div className="mt-10 flex flex-wrap justify-center gap-3">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 bg-zinc-100/50 px-4 py-2 rounded-full border border-zinc-100">
+                  <FileText className="w-3 h-3" />
+                  支援 .CSV 格式
+                </div>
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400 bg-zinc-100/50 px-4 py-2 rounded-full border border-zinc-100">
+                  <Users className="w-3 h-3" />
+                  自動辨識員工
+                </div>
+              </div>
+
+              {/* Dragging overlay hint */}
+              <AnimatePresence>
+                {isDragging && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-blue-500/10 backdrop-blur-[2px] flex items-center justify-center z-20"
+                  >
+                    <div className="bg-white px-8 py-4 rounded-2xl shadow-2xl border border-blue-100 flex items-center gap-3">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />
+                      <span className="font-bold text-blue-600">放開以開始解析檔案</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <div className="space-y-2">
-              <h3 className="text-2xl font-semibold">點擊或拖曳 CSV 檔案至此</h3>
-              <p className="text-zinc-400 max-w-sm mx-auto">
-                支援 POS 系統匯出的標準格式，包含姓名、日期、上下班時間等資訊。
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 bg-zinc-50 px-3 py-1.5 rounded-full">
-              <FileText className="w-3 h-3" />
-              ATTENDANCE_REPORT.CSV
+
+            {/* Hint section */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[
+                { title: '欄位確認', desc: '請確保檔案包含「姓名」、「上班時間」、「下班時間」等關鍵欄位。', icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-50' },
+                { title: '跨夜處理', desc: '系統會自動偵測「(隔日)」標記，並正確計算跨午夜的工時。', icon: Clock, color: 'text-blue-500', bg: 'bg-blue-50' },
+                { title: '手動調整', desc: '匯入後可針對個別員工進行工時微調，並即時更新薪資。', icon: Edit2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+              ].map((item, i) => (
+                <div key={i} className="bg-white p-6 rounded-3xl border border-zinc-100 flex gap-4">
+                  <div className={cn("shrink-0 w-10 h-10 rounded-xl flex items-center justify-center", item.bg)}>
+                    <item.icon className={cn("w-5 h-5", item.color)} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900 mb-1">{item.title}</h4>
+                    <p className="text-xs text-zinc-500 leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ) : (
@@ -224,7 +349,7 @@ export default function App() {
                   <span className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">總工時</span>
                 </div>
                 <div className="text-4xl font-bold">
-                  {Math.floor(employeeSummaries.reduce((acc, curr) => acc + curr.totalMinutes, 0) / 60)} 
+                  {Math.floor(employeeSummaries.reduce((acc, curr) => acc + (manualMinutes[curr.id] ?? curr.totalMinutes), 0) / 60)} 
                   <span className="text-lg font-normal text-zinc-400"> 小時</span>
                 </div>
               </div>
@@ -237,7 +362,7 @@ export default function App() {
                   <span className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">預估總薪資</span>
                 </div>
                 <div className="text-4xl font-bold">
-                  ${employeeSummaries.reduce((acc, curr) => acc + calculateSalary(curr.totalMinutes), 0).toLocaleString()}
+                  ${employeeSummaries.reduce((acc, curr) => acc + calculateSalary(manualMinutes[curr.id] ?? curr.totalMinutes), 0).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -260,37 +385,95 @@ export default function App() {
                     <tr className="bg-zinc-50/50 border-y border-zinc-100">
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">員工姓名 / 編號</th>
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">出勤次數</th>
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">總工時</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">系統計算工時</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">手動調整工時</th>
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right">預估薪資</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {employeeSummaries.map((emp) => (
-                      <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
-                        <td className="px-6 py-5">
-                          <div className="font-semibold text-lg">{emp.name}</div>
-                          <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <button 
-                            onClick={() => setSelectedEmployee(emp)}
-                            className="bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
-                          >
-                            {emp.records.length} 次
-                            <span className="text-[10px] bg-zinc-400 text-white px-1 rounded">查看</span>
-                          </button>
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="font-medium">{formatHours(emp.totalMinutes)}</div>
-                          <div className="text-xs text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
-                        </td>
-                        <td className="px-6 py-5 text-right">
-                          <div className="text-2xl font-bold text-zinc-900">
-                            ${calculateSalary(emp.totalMinutes).toLocaleString()}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {employeeSummaries.map((emp) => {
+                      const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
+                      const isAdjusted = manualMinutes[emp.id] !== undefined;
+
+                      return (
+                        <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
+                          <td className="px-6 py-5">
+                            <div className="font-semibold text-lg">{emp.name}</div>
+                            <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <button 
+                              onClick={() => setSelectedEmployee(emp)}
+                              className="bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                              {emp.records.length} 次
+                              <span className="text-[10px] bg-zinc-400 text-white px-1 rounded">查看</span>
+                            </button>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="text-sm text-zinc-500">{formatHours(emp.totalMinutes)}</div>
+                            <div className="text-[10px] text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder={Math.floor(emp.totalMinutes / 60).toString()}
+                                  value={isAdjusted ? Math.floor(currentMinutes / 60) : ""}
+                                  onChange={(e) => {
+                                    const h = parseInt(e.target.value.replace(/[^0-9]/g, '') || "0");
+                                    const m = currentMinutes % 60;
+                                    setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
+                                  }}
+                                  className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                />
+                                <span className="text-[10px] text-zinc-400 font-bold">H</span>
+                                <span className="mx-1 text-zinc-300">|</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  placeholder={(emp.totalMinutes % 60).toString()}
+                                  value={isAdjusted ? (currentMinutes % 60) : ""}
+                                  onChange={(e) => {
+                                    const m = Math.min(59, parseInt(e.target.value.replace(/[^0-9]/g, '') || "0"));
+                                    const h = Math.floor(currentMinutes / 60);
+                                    setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
+                                  }}
+                                  className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                />
+                                <span className="text-[10px] text-zinc-400 font-bold">M</span>
+                              </div>
+                              {isAdjusted && (
+                                <button 
+                                  onClick={() => {
+                                    const newManual = { ...manualMinutes };
+                                    delete newManual[emp.id];
+                                    setManualMinutes(newManual);
+                                  }}
+                                  className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
+                                  title="重設為系統計算"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <div className={cn(
+                              "text-2xl font-bold transition-colors",
+                              isAdjusted ? "text-blue-600" : "text-zinc-900"
+                            )}>
+                              ${calculateSalary(currentMinutes).toLocaleString()}
+                            </div>
+                            {isAdjusted && (
+                              <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -349,11 +532,25 @@ export default function App() {
                   {selectedEmployee.records.map((record, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-zinc-100 bg-white hover:border-zinc-200 transition-all">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center">
-                          <Calendar className="w-5 h-5 text-zinc-500" />
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center",
+                          record.isNextDay ? "bg-amber-100" : "bg-zinc-100"
+                        )}>
+                          {record.isNextDay ? (
+                            <AlertCircle className="w-5 h-5 text-amber-600" />
+                          ) : (
+                            <Calendar className="w-5 h-5 text-zinc-500" />
+                          )}
                         </div>
                         <div>
-                          <div className="font-semibold">{record.date}</div>
+                          <div className="font-semibold flex items-center gap-2">
+                            {record.date}
+                            {record.isNextDay && (
+                              <span className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded-md font-bold animate-pulse">
+                                隔日打卡
+                              </span>
+                            )}
+                          </div>
                           <div className="text-sm text-zinc-500 flex items-center gap-2">
                             <Clock className="w-3 h-3" />
                             {record.start} - {record.end}
