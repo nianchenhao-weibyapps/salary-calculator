@@ -30,11 +30,13 @@ interface EmployeeSummary {
   name: string;
   totalMinutes: number;
   records: {
+    id: string;
     date: string;
     start: string;
     end: string;
     minutes: number;
     isNextDay: boolean;
+    isManual?: boolean;
   }[];
 }
 
@@ -46,6 +48,9 @@ export default function App() {
   const [manualMinutes, setManualMinutes] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [manualRecordAdjustments, setManualRecordAdjustments] = useState<Record<string, string>>({});
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [tempEndTime, setTempEndTime] = useState('');
 
   const handleFileUpload = (file: File) => {
     Papa.parse(file, {
@@ -91,21 +96,27 @@ export default function App() {
   const employeeSummaries = useMemo(() => {
     const summaries: Record<string, EmployeeSummary> = {};
 
-    data.forEach((row) => {
+    data.forEach((row, index) => {
       const id = row.員工編號 || row.姓名;
       const name = row.姓名;
+      const recordId = `record-${index}`;
       
       if (!summaries[id]) {
         summaries[id] = { id, name, totalMinutes: 0, records: [] };
       }
 
       try {
+        // Check for manual adjustment first
+        const manualEnd = manualRecordAdjustments[recordId];
+        const originalEnd = row.下班時間;
+        const effectiveEnd = manualEnd || originalEnd;
+
         // Clean time strings: remove "(隔日)" and any extra spaces
         const cleanStart = row.上班時間?.replace(/\(.*\)/, '').trim();
-        const cleanEnd = row.下班時間?.replace(/\(.*\)/, '').trim();
+        const cleanEnd = effectiveEnd?.replace(/\(.*\)/, '').trim();
 
         if (!cleanStart || !cleanEnd) {
-          console.warn(`Row ${row.項次} is missing start or end time:`, row);
+          console.warn(`Row ${index} is missing start or end time:`, row);
           return;
         }
 
@@ -113,18 +124,14 @@ export default function App() {
         const endTime = parse(cleanEnd, 'HH:mm', new Date());
         
         let minutes = differenceInMinutes(endTime, startTime);
-        let isNextDay = row.下班時間?.includes('隔日');
+        let isNextDay = effectiveEnd?.includes('隔日');
         
         // Handle shifts crossing midnight (if end time is earlier than start time)
-        // Or if the original string contained "(隔日)"
         if (minutes < 0 || isNextDay) {
-          // If it was already positive but marked as (隔日), it means it's > 24h or just a long shift
-          // But usually (隔日) with a smaller HH:mm means +24h
           if (minutes < 0) {
             minutes += 24 * 60;
             isNextDay = true;
           } else if (isNextDay) {
-            // If it's something like 15:00 to 15:01(隔日), minutes is 1, but should be 24h + 1
             minutes += 24 * 60;
           }
         }
@@ -132,20 +139,22 @@ export default function App() {
         if (!isNaN(minutes)) {
           summaries[id].totalMinutes += minutes;
           summaries[id].records.push({
+            id: recordId,
             date: row.打卡日期,
             start: row.上班時間,
-            end: row.下班時間,
+            end: effectiveEnd,
             minutes,
-            isNextDay: !!isNextDay
+            isNextDay: !!isNextDay,
+            isManual: !!manualEnd
           });
         }
       } catch (e) {
-        console.warn(`Row ${row.項次} has invalid time format:`, row);
+        console.warn(`Row ${index} has invalid time format:`, row);
       }
     });
 
     return Object.values(summaries).sort((a, b) => b.totalMinutes - a.totalMinutes);
-  }, [data]);
+  }, [data, manualRecordAdjustments]);
 
   const filteredEmployees = useMemo(() => {
     return employeeSummaries.filter(emp => 
@@ -153,6 +162,11 @@ export default function App() {
       emp.id.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [employeeSummaries, searchTerm]);
+
+  const activeEmployee = useMemo(() => {
+    if (!selectedEmployee) return null;
+    return employeeSummaries.find(e => e.id === selectedEmployee.id) || selectedEmployee;
+  }, [selectedEmployee, employeeSummaries]);
 
   const formatHours = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -162,6 +176,25 @@ export default function App() {
 
   const calculateSalary = (minutes: number) => {
     return Math.round((minutes / 60) * hourlyWage);
+  };
+
+  const handleRecordSave = (recordId: string, input: string) => {
+    let formatted = input.trim();
+    // Auto-format: 2200 -> 22:00, 900 -> 09:00
+    if (/^\d{3,4}$/.test(formatted)) {
+      if (formatted.length === 3) {
+        formatted = `0${formatted.slice(0, 1)}:${formatted.slice(1)}`;
+      } else {
+        formatted = `${formatted.slice(0, 2)}:${formatted.slice(2)}`;
+      }
+    }
+
+    if (formatted.match(/^\d{1,2}:\d{2}$/)) {
+      setManualRecordAdjustments(prev => ({ ...prev, [recordId]: formatted }));
+      setEditingRecordId(null);
+    } else {
+      alert('請輸入正確的時間格式 (HH:mm) 或 4位數字 (如 2200)');
+    }
   };
 
   const handleExport = () => {
@@ -553,7 +586,7 @@ export default function App() {
 
       {/* Detail Modal */}
       <AnimatePresence>
-        {selectedEmployee && (
+        {activeEmployee && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
@@ -571,8 +604,8 @@ export default function App() {
               {/* Modal Header */}
               <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
                 <div>
-                  <h3 className="text-2xl font-bold">{selectedEmployee.name}</h3>
-                  <p className="text-sm text-zinc-500">出勤明細紀錄 ({selectedEmployee.records.length} 筆)</p>
+                  <h3 className="text-2xl font-bold">{activeEmployee.name}</h3>
+                  <p className="text-sm text-zinc-500">出勤明細紀錄 ({activeEmployee.records.length} 筆)</p>
                 </div>
                 <button 
                   onClick={() => setSelectedEmployee(null)}
@@ -585,7 +618,7 @@ export default function App() {
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
-                  {selectedEmployee.records.map((record, idx) => (
+                  {activeEmployee.records.map((record, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-zinc-100 bg-white hover:border-zinc-200 transition-all">
                       <div className="flex items-center gap-4">
                         <div className={cn(
@@ -606,10 +639,75 @@ export default function App() {
                                 隔日打卡
                               </span>
                             )}
+                            {record.isManual && (
+                              <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-bold">
+                                已修正
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm text-zinc-500 flex items-center gap-2">
                             <Clock className="w-3 h-3" />
-                            {record.start} - {record.end}
+                            {record.start} - 
+                            {editingRecordId === record.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={tempEndTime}
+                                  onChange={(e) => setTempEndTime(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleRecordSave(record.id, tempEndTime);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingRecordId(null);
+                                    }
+                                  }}
+                                  placeholder="HH:mm"
+                                  className="w-16 px-1 py-0.5 bg-zinc-100 border border-zinc-200 rounded text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  autoFocus
+                                />
+                                <button 
+                                  onClick={() => handleRecordSave(record.id, tempEndTime)}
+                                  className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                                  title="儲存修正"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button 
+                                  onClick={() => setEditingRecordId(null)}
+                                  className="p-1 bg-zinc-200 text-zinc-600 rounded hover:bg-zinc-300 transition-colors"
+                                  title="取消"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 group/time">
+                                <span>{record.end}</span>
+                                <button 
+                                  onClick={() => {
+                                    setEditingRecordId(record.id);
+                                    setTempEndTime(record.end.replace(/\(.*\)/, '').trim());
+                                  }}
+                                  className="opacity-0 group-hover/time:opacity-100 p-1 hover:bg-zinc-100 rounded transition-all text-zinc-400 hover:text-zinc-600"
+                                  title="修正下班時間"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                {record.isManual && (
+                                  <button 
+                                    onClick={() => {
+                                      const newAdjustments = { ...manualRecordAdjustments };
+                                      delete newAdjustments[record.id];
+                                      setManualRecordAdjustments(newAdjustments);
+                                    }}
+                                    className="p-1 hover:bg-red-50 rounded transition-all text-red-400 hover:text-red-600"
+                                    title="還原原始紀錄"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -631,11 +729,11 @@ export default function App() {
                 <div className="flex gap-6">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">總計時數</div>
-                    <div className="text-lg font-bold">{formatHours(selectedEmployee.totalMinutes)}</div>
+                    <div className="text-lg font-bold">{formatHours(activeEmployee.totalMinutes)}</div>
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">預估薪資</div>
-                    <div className="text-lg font-bold text-emerald-600">${calculateSalary(selectedEmployee.totalMinutes).toLocaleString()}</div>
+                    <div className="text-lg font-bold text-emerald-600">${calculateSalary(activeEmployee.totalMinutes).toLocaleString()}</div>
                   </div>
                 </div>
                 <button 
