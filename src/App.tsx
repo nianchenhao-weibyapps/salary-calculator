@@ -37,6 +37,7 @@ interface EmployeeSummary {
     minutes: number;
     isNextDay: boolean;
     isManual?: boolean;
+    isExcluded?: boolean;
   }[];
 }
 
@@ -48,9 +49,9 @@ export default function App() {
   const [manualMinutes, setManualMinutes] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [manualRecordAdjustments, setManualRecordAdjustments] = useState<Record<string, string>>({});
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
-  const [tempEndTime, setTempEndTime] = useState('');
+  const [manualRecordAdjustments, setManualRecordAdjustments] = useState<Record<string, { start?: string; end?: string; excluded?: boolean }>>({});
+  const [editingRecord, setEditingRecord] = useState<{ id: string; field: 'start' | 'end' } | null>(null);
+  const [tempTimeValue, setTempTimeValue] = useState('');
 
   const handleFileUpload = (file: File) => {
     Papa.parse(file, {
@@ -107,12 +108,13 @@ export default function App() {
 
       try {
         // Check for manual adjustment first
-        const manualEnd = manualRecordAdjustments[recordId];
-        const originalEnd = row.下班時間;
-        const effectiveEnd = manualEnd || originalEnd;
+        const adjustments = manualRecordAdjustments[recordId] || {};
+        const effectiveStart = adjustments.start || row.上班時間;
+        const effectiveEnd = adjustments.end || row.下班時間;
+        const isExcluded = adjustments.excluded || false;
 
         // Clean time strings: remove "(隔日)" and any extra spaces
-        const cleanStart = row.上班時間?.replace(/\(.*\)/, '').trim();
+        const cleanStart = effectiveStart?.replace(/\(.*\)/, '').trim();
         const cleanEnd = effectiveEnd?.replace(/\(.*\)/, '').trim();
 
         if (!cleanStart || !cleanEnd) {
@@ -137,15 +139,19 @@ export default function App() {
         }
 
         if (!isNaN(minutes)) {
-          summaries[id].totalMinutes += minutes;
+          if (!isExcluded) {
+            summaries[id].totalMinutes += minutes;
+          }
+          
           summaries[id].records.push({
             id: recordId,
             date: row.打卡日期,
-            start: row.上班時間,
+            start: effectiveStart,
             end: effectiveEnd,
             minutes,
             isNextDay: !!isNextDay,
-            isManual: !!manualEnd
+            isManual: !!adjustments.start || !!adjustments.end,
+            isExcluded
           });
         }
       } catch (e) {
@@ -178,7 +184,7 @@ export default function App() {
     return Math.round((minutes / 60) * hourlyWage);
   };
 
-  const handleRecordSave = (recordId: string, input: string) => {
+  const handleRecordSave = (recordId: string, field: 'start' | 'end', input: string) => {
     let formatted = input.trim();
     // Auto-format: 2200 -> 22:00, 900 -> 09:00
     if (/^\d{3,4}$/.test(formatted)) {
@@ -190,11 +196,27 @@ export default function App() {
     }
 
     if (formatted.match(/^\d{1,2}:\d{2}$/)) {
-      setManualRecordAdjustments(prev => ({ ...prev, [recordId]: formatted }));
-      setEditingRecordId(null);
+      setManualRecordAdjustments(prev => ({
+        ...prev,
+        [recordId]: {
+          ...(prev[recordId] || {}),
+          [field]: formatted
+        }
+      }));
+      setEditingRecord(null);
     } else {
       alert('請輸入正確的時間格式 (HH:mm) 或 4位數字 (如 2200)');
     }
+  };
+
+  const handleToggleExclude = (recordId: string) => {
+    setManualRecordAdjustments(prev => ({
+      ...prev,
+      [recordId]: {
+        ...(prev[recordId] || {}),
+        excluded: !(prev[recordId]?.excluded)
+      }
+    }));
   };
 
   const handleExport = () => {
@@ -619,105 +641,228 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
                   {activeEmployee.records.map((record, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-zinc-100 bg-white hover:border-zinc-200 transition-all">
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "flex items-center justify-between p-4 rounded-2xl border transition-all relative group/row",
+                        record.isExcluded 
+                          ? "bg-zinc-50 border-zinc-100 opacity-40 grayscale" 
+                          : "bg-white border-zinc-100 hover:border-zinc-200"
+                      )}
+                    >
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "w-10 h-10 rounded-xl flex items-center justify-center",
-                          record.isNextDay ? "bg-amber-100" : "bg-zinc-100"
+                          record.isExcluded ? "bg-zinc-200" : (record.isNextDay ? "bg-amber-100" : "bg-zinc-100")
                         )}>
-                          {record.isNextDay ? (
-                            <AlertCircle className="w-5 h-5 text-amber-600" />
+                          {record.isExcluded ? (
+                            <X className="w-5 h-5 text-zinc-400" />
                           ) : (
-                            <Calendar className="w-5 h-5 text-zinc-500" />
+                            record.isNextDay ? (
+                              <AlertCircle className="w-5 h-5 text-amber-600" />
+                            ) : (
+                              <Calendar className="w-5 h-5 text-zinc-500" />
+                            )
                           )}
                         </div>
                         <div>
                           <div className="font-semibold flex items-center gap-2">
-                            {record.date}
-                            {record.isNextDay && (
+                            <span className={record.isExcluded ? "line-through text-zinc-400" : ""}>
+                              {record.date}
+                            </span>
+                            {record.isExcluded && (
+                              <span className="text-[10px] bg-zinc-400 text-white px-1.5 py-0.5 rounded-md font-bold">
+                                不計薪
+                              </span>
+                            )}
+                            {!record.isExcluded && record.isNextDay && (
                               <span className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded-md font-bold animate-pulse">
                                 隔日打卡
                               </span>
                             )}
-                            {record.isManual && (
+                            {!record.isExcluded && record.isManual && (
                               <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-bold">
                                 已修正
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-zinc-500 flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
-                            {record.start} - 
-                            {editingRecordId === record.id ? (
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="text"
-                                  value={tempEndTime}
-                                  onChange={(e) => setTempEndTime(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      handleRecordSave(record.id, tempEndTime);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingRecordId(null);
-                                    }
-                                  }}
-                                  placeholder="HH:mm"
-                                  className="w-16 px-1 py-0.5 bg-zinc-100 border border-zinc-200 rounded text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                  autoFocus
-                                />
-                                <button 
-                                  onClick={() => handleRecordSave(record.id, tempEndTime)}
-                                  className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                                  title="儲存修正"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                                <button 
-                                  onClick={() => setEditingRecordId(null)}
-                                  className="p-1 bg-zinc-200 text-zinc-600 rounded hover:bg-zinc-300 transition-colors"
-                                  title="取消"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 group/time">
-                                <span>{record.end}</span>
-                                <button 
-                                  onClick={() => {
-                                    setEditingRecordId(record.id);
-                                    setTempEndTime(record.end.replace(/\(.*\)/, '').trim());
-                                  }}
-                                  className="opacity-0 group-hover/time:opacity-100 p-1 hover:bg-zinc-100 rounded transition-all text-zinc-400 hover:text-zinc-600"
-                                  title="修正下班時間"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </button>
-                                {record.isManual && (
-                                  <button 
+                          <div className="mt-2 flex items-center gap-3">
+                            {/* Start Time Slot */}
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "px-2 py-1 rounded-lg border flex items-center gap-2 transition-all",
+                                record.isExcluded 
+                                  ? "border-zinc-100 bg-zinc-50" 
+                                  : "border-blue-100 bg-blue-50/30 group/start"
+                              )}>
+                                <span className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wider",
+                                  record.isExcluded ? "text-zinc-300" : "text-blue-500"
+                                )}>
+                                  上班
+                                </span>
+                                
+                                {editingRecord?.id === record.id && editingRecord?.field === 'start' ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="text"
+                                      value={tempTimeValue}
+                                      onChange={(e) => setTempTimeValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleRecordSave(record.id, 'start', tempTimeValue);
+                                        } else if (e.key === 'Escape') {
+                                          setEditingRecord(null);
+                                        }
+                                      }}
+                                      className="w-14 bg-white border border-blue-200 rounded px-1 py-0.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      autoFocus
+                                    />
+                                    <button 
+                                      onClick={() => handleRecordSave(record.id, 'start', tempTimeValue)}
+                                      className="text-blue-600 hover:text-blue-700"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className={cn(
+                                      "flex items-center gap-1 cursor-pointer",
+                                      !record.isExcluded && "hover:text-blue-600"
+                                    )}
                                     onClick={() => {
-                                      const newAdjustments = { ...manualRecordAdjustments };
-                                      delete newAdjustments[record.id];
-                                      setManualRecordAdjustments(newAdjustments);
+                                      if (!record.isExcluded) {
+                                        setEditingRecord({ id: record.id, field: 'start' });
+                                        setTempTimeValue(record.start.replace(/\(.*\)/, '').trim());
+                                      }
                                     }}
-                                    className="p-1 hover:bg-red-50 rounded transition-all text-red-400 hover:text-red-600"
-                                    title="還原原始紀錄"
                                   >
-                                    <RotateCcw className="w-3 h-3" />
-                                  </button>
+                                    <span className={cn(
+                                      "text-xs font-bold font-mono",
+                                      record.isExcluded ? "text-zinc-300 line-through" : "text-zinc-700"
+                                    )}>
+                                      {record.start}
+                                    </span>
+                                    {!record.isExcluded && (
+                                      <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/start:opacity-100 transition-opacity" />
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
+                            </div>
+
+                            <div className={cn(
+                              "w-4 h-px",
+                              record.isExcluded ? "bg-zinc-200" : "bg-zinc-300"
+                            )} />
+
+                            {/* End Time Slot */}
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "px-2 py-1 rounded-lg border flex items-center gap-2 transition-all",
+                                record.isExcluded 
+                                  ? "border-zinc-100 bg-zinc-50" 
+                                  : "border-emerald-100 bg-emerald-50/30 group/end"
+                              )}>
+                                <span className={cn(
+                                  "text-[10px] font-bold uppercase tracking-wider",
+                                  record.isExcluded ? "text-zinc-300" : "text-emerald-500"
+                                )}>
+                                  下班
+                                </span>
+                                
+                                {editingRecord?.id === record.id && editingRecord?.field === 'end' ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="text"
+                                      value={tempTimeValue}
+                                      onChange={(e) => setTempTimeValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          handleRecordSave(record.id, 'end', tempTimeValue);
+                                        } else if (e.key === 'Escape') {
+                                          setEditingRecord(null);
+                                        }
+                                      }}
+                                      className="w-14 bg-white border border-emerald-200 rounded px-1 py-0.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                      autoFocus
+                                    />
+                                    <button 
+                                      onClick={() => handleRecordSave(record.id, 'end', tempTimeValue)}
+                                      className="text-emerald-600 hover:text-emerald-700"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className={cn(
+                                      "flex items-center gap-1 cursor-pointer",
+                                      !record.isExcluded && "hover:text-emerald-600"
+                                    )}
+                                    onClick={() => {
+                                      if (!record.isExcluded) {
+                                        setEditingRecord({ id: record.id, field: 'end' });
+                                        setTempTimeValue(record.end.replace(/\(.*\)/, '').trim());
+                                      }
+                                    }}
+                                  >
+                                    <span className={cn(
+                                      "text-xs font-bold font-mono",
+                                      record.isExcluded ? "text-zinc-300 line-through" : "text-zinc-700"
+                                    )}>
+                                      {record.end}
+                                    </span>
+                                    {!record.isExcluded && (
+                                      <Edit2 className="w-2.5 h-2.5 opacity-0 group-hover/end:opacity-100 transition-opacity" />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {!record.isExcluded && record.isManual && (
+                                <button 
+                                  onClick={() => {
+                                    const newAdjustments = { ...manualRecordAdjustments };
+                                    delete newAdjustments[record.id];
+                                    setManualRecordAdjustments(newAdjustments);
+                                  }}
+                                  className="p-1 hover:bg-red-50 rounded transition-all text-red-400 hover:text-red-600"
+                                  title="還原原始紀錄"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-mono font-medium text-zinc-900">
-                          {formatHours(record.minutes)}
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                          <div className={cn(
+                            "font-mono font-medium",
+                            record.isExcluded ? "text-zinc-300 line-through" : "text-zinc-900"
+                          )}>
+                            {formatHours(record.minutes)}
+                          </div>
+                          <div className="text-xs text-zinc-400">
+                            {(record.minutes / 60).toFixed(1)} 小時
+                          </div>
                         </div>
-                        <div className="text-xs text-zinc-400">
-                          {(record.minutes / 60).toFixed(1)} 小時
-                        </div>
+                        
+                        <button
+                          onClick={() => handleToggleExclude(record.id)}
+                          className={cn(
+                            "p-2 rounded-xl transition-all border",
+                            record.isExcluded 
+                              ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" 
+                              : "bg-white text-zinc-400 border-zinc-200 hover:text-red-500 hover:border-red-200 hover:bg-red-50"
+                          )}
+                          title={record.isExcluded ? "恢復計算" : "不計入薪資"}
+                        >
+                          {record.isExcluded ? <RotateCcw className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
                       </div>
                     </div>
                   ))}
