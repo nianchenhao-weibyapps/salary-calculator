@@ -43,7 +43,8 @@ interface EmployeeSummary {
 
 export default function App() {
   const [data, setData] = useState<AttendanceRow[]>([]);
-  const [hourlyWage, setHourlyWage] = useState<number>(190); // Default minimum wage in Taiwan approx
+  const [defaultHourlyWage, setDefaultHourlyWage] = useState<number>(190); // Default minimum wage in Taiwan approx
+  const [employeeWages, setEmployeeWages] = useState<Record<string, number>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSummary | null>(null);
   const [manualMinutes, setManualMinutes] = useState<Record<string, number>>({});
@@ -180,8 +181,9 @@ export default function App() {
     return `${hours} 小時 ${mins} 分鐘`;
   };
 
-  const calculateSalary = (minutes: number) => {
-    return Math.round((minutes / 60) * hourlyWage);
+  const calculateSalary = (minutes: number, employeeId: string) => {
+    const wage = employeeWages[employeeId] ?? defaultHourlyWage;
+    return Math.round((minutes / 60) * wage);
   };
 
   const handleRecordSave = (recordId: string, field: 'start' | 'end', input: string) => {
@@ -234,8 +236,8 @@ export default function App() {
         '系統計算分鐘': emp.totalMinutes,
         '手動調整工時': isAdjusted ? formatHours(currentMinutes) : '未調整',
         '最終結算分鐘': currentMinutes,
-        '設定時薪': hourlyWage,
-        '預估薪資': calculateSalary(currentMinutes)
+        '設定時薪': employeeWages[emp.id] ?? defaultHourlyWage,
+        '預估薪資': calculateSalary(currentMinutes, emp.id)
       };
     });
 
@@ -266,7 +268,7 @@ export default function App() {
             <div className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-zinc-200">
               <div className="flex flex-col">
                 <label htmlFor="wage" className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
-                  設定時薪 (TWD)
+                  預設時薪 (TWD)
                 </label>
                 <div className="relative">
                   <DollarSign className="absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -274,11 +276,11 @@ export default function App() {
                     id="wage"
                     type="text"
                     inputMode="numeric"
-                    value={hourlyWage}
+                    value={defaultHourlyWage}
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
-                      setHourlyWage(val === '' ? 0 : Number(val));
+                      setDefaultHourlyWage(val === '' ? 0 : Number(val));
                     }}
                     className="pl-5 pr-2 py-1 text-xl font-medium focus:outline-none w-32"
                   />
@@ -426,7 +428,7 @@ export default function App() {
                   <span className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">預估總薪資</span>
                 </div>
                 <div className="text-4xl font-bold">
-                  ${employeeSummaries.reduce((acc, curr) => acc + calculateSalary(manualMinutes[curr.id] ?? curr.totalMinutes), 0).toLocaleString()}
+                  ${employeeSummaries.reduce((acc, curr) => acc + calculateSalary(manualMinutes[curr.id] ?? curr.totalMinutes, curr.id), 0).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -476,6 +478,7 @@ export default function App() {
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">出勤次數</th>
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">系統計算工時</th>
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">手動調整工時</th>
+                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">指定時薪</th>
                       <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right">預估薪資</th>
                     </tr>
                   </thead>
@@ -484,6 +487,8 @@ export default function App() {
                       filteredEmployees.map((emp) => {
                         const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
                         const isAdjusted = manualMinutes[emp.id] !== undefined;
+                        const currentWage = employeeWages[emp.id] ?? defaultHourlyWage;
+                        const isWageAdjusted = employeeWages[emp.id] !== undefined;
 
                         return (
                           <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
@@ -550,14 +555,41 @@ export default function App() {
                                 )}
                               </div>
                             </td>
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-2">
+                                <div className={cn(
+                                  "relative flex items-center bg-zinc-50 border rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all",
+                                  isWageAdjusted ? "border-amber-200 bg-amber-50/30" : "border-zinc-200"
+                                )}>
+                                  <span className="text-[10px] text-zinc-400 font-bold mr-1">$</span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder={defaultHourlyWage.toString()}
+                                    value={isWageAdjusted ? employeeWages[emp.id] : ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
+                                      if (val === '') {
+                                        const newWages = { ...employeeWages };
+                                        delete newWages[emp.id];
+                                        setEmployeeWages(newWages);
+                                      } else {
+                                        setEmployeeWages(prev => ({ ...prev, [emp.id]: Number(val) }));
+                                      }
+                                    }}
+                                    className="w-12 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </td>
                             <td className="px-6 py-5 text-right">
                               <div className={cn(
                                 "text-2xl font-bold transition-colors",
-                                isAdjusted ? "text-blue-600" : "text-zinc-900"
+                                isAdjusted || isWageAdjusted ? "text-blue-600" : "text-zinc-900"
                               )}>
-                                ${calculateSalary(currentMinutes).toLocaleString()}
+                                ${calculateSalary(currentMinutes, emp.id).toLocaleString()}
                               </div>
-                              {isAdjusted && (
+                              {(isAdjusted || isWageAdjusted) && (
                                 <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
                               )}
                             </td>
@@ -566,7 +598,7 @@ export default function App() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-6 py-24 text-center">
+                        <td colSpan={6} className="px-6 py-24 text-center">
                           <div className="flex flex-col items-center gap-3 text-zinc-400">
                             <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center">
                               <Search className="w-8 h-8 opacity-20" />
@@ -874,11 +906,11 @@ export default function App() {
                 <div className="flex gap-6">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">總計時數</div>
-                    <div className="text-lg font-bold">{formatHours(activeEmployee.totalMinutes)}</div>
+                    <div className="text-lg font-bold">{formatHours(manualMinutes[activeEmployee.id] ?? activeEmployee.totalMinutes)}</div>
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">預估薪資</div>
-                    <div className="text-lg font-bold text-emerald-600">${calculateSalary(activeEmployee.totalMinutes).toLocaleString()}</div>
+                    <div className="text-lg font-bold text-emerald-600">${calculateSalary(manualMinutes[activeEmployee.id] ?? activeEmployee.totalMinutes, activeEmployee.id).toLocaleString()}</div>
                   </div>
                 </div>
                 <button 
