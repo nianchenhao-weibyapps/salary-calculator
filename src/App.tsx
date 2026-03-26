@@ -254,17 +254,17 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5] text-[#1A1A1A] font-sans p-4 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#F5F5F5] text-[#1A1A1A] font-sans p-2 sm:p-4 md:p-8">
+      <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8">
         {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight text-zinc-900">員工出勤薪資計算</h1>
-            <p className="text-zinc-500 mt-2">上傳 POS 匯出的 CSV 檔案，快速結算工時與薪資。</p>
-            <p className="text-amber-600 text-xs mt-1 font-medium">※ 此工具僅供計算參考，實際薪資計算請店家再自行核對確認</p>
+        <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 leading-tight">員工出勤薪資計算</h1>
+            <p className="text-sm sm:text-base text-zinc-500">上傳 POS 匯出的 CSV 檔案，快速結算工時與薪資。</p>
+            <p className="text-amber-600 text-[10px] sm:text-xs font-medium">※ 此工具僅供計算參考，實際薪資計算請店家再自行核對確認</p>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <div className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-zinc-200">
               <div className="flex flex-col">
                 <label htmlFor="wage" className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-1">
@@ -396,38 +396,38 @@ export default function App() {
         ) : (
           <div className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border border-zinc-100">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-blue-50 rounded-xl">
                     <Users className="w-5 h-5 text-blue-600" />
                   </div>
-                  <span className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">總人數</span>
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">總人數</span>
                 </div>
-                <div className="text-4xl font-bold">{employeeSummaries.length} <span className="text-lg font-normal text-zinc-400">人</span></div>
+                <div className="text-3xl sm:text-4xl font-bold">{employeeSummaries.length} <span className="text-lg font-normal text-zinc-400">人</span></div>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+              <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border border-zinc-100">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-emerald-50 rounded-xl">
                     <Clock className="w-5 h-5 text-emerald-600" />
                   </div>
-                  <span className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">總工時</span>
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">總工時</span>
                 </div>
-                <div className="text-4xl font-bold">
+                <div className="text-3xl sm:text-4xl font-bold">
                   {Math.floor(employeeSummaries.reduce((acc, curr) => acc + (manualMinutes[curr.id] ?? curr.totalMinutes), 0) / 60)} 
                   <span className="text-lg font-normal text-zinc-400"> 小時</span>
                 </div>
               </div>
 
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-zinc-100">
+              <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border border-zinc-100 sm:col-span-2 lg:col-span-1">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="p-2 bg-amber-50 rounded-xl">
                     <DollarSign className="w-5 h-5 text-amber-600" />
                   </div>
-                  <span className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">預估總薪資</span>
+                  <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">預估總薪資</span>
                 </div>
-                <div className="text-4xl font-bold">
+                <div className="text-3xl sm:text-4xl font-bold">
                   ${employeeSummaries.reduce((acc, curr) => acc + calculateSalary(manualMinutes[curr.id] ?? curr.totalMinutes, curr.id), 0).toLocaleString()}
                 </div>
               </div>
@@ -435,14 +435,14 @@ export default function App() {
 
             {/* Employee Table */}
             <div className="bg-white rounded-3xl shadow-sm border border-zinc-100 overflow-hidden">
-              <div className="p-8 border-b border-zinc-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="p-5 sm:p-8 border-b border-zinc-100 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold tracking-tight">員工結算清單</h2>
-                  <p className="text-sm text-zinc-400">共 {filteredEmployees.length} 位符合條件的員工</p>
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight">員工結算清單</h2>
+                  <p className="text-xs sm:text-sm text-zinc-400">共 {filteredEmployees.length} 位符合條件的員工</p>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="relative w-full md:w-64">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                  <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                     <input
                       type="text"
@@ -470,19 +470,158 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <table className="w-full text-left hidden md:table min-w-[800px]">
                   <thead>
-                    <tr className="bg-zinc-50/50 border-y border-zinc-100">
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">員工姓名 / 編號</th>
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">出勤次數</th>
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">系統計算工時</th>
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">手動調整工時</th>
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">指定時薪</th>
-                      <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right">預估薪資</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
+                      <tr className="bg-zinc-50/50 border-y border-zinc-100">
+                        <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">員工姓名 / 編號</th>
+                        <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">出勤次數</th>
+                        <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">系統計算工時</th>
+                        <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">手動調整工時</th>
+                        <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider">指定時薪</th>
+                        <th className="px-6 py-4 text-xs font-semibold text-zinc-400 uppercase tracking-wider text-right">預估薪資</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100">
+                      {filteredEmployees.length > 0 ? (
+                        filteredEmployees.map((emp) => {
+                          const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
+                          const isAdjusted = manualMinutes[emp.id] !== undefined;
+                          const currentWage = employeeWages[emp.id] ?? defaultHourlyWage;
+                          const isWageAdjusted = employeeWages[emp.id] !== undefined;
+
+                          return (
+                            <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
+                              <td className="px-6 py-5">
+                                <div className="font-semibold text-lg">{emp.name}</div>
+                                <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
+                              </td>
+                              <td className="px-6 py-5">
+                                <button 
+                                  onClick={() => setSelectedEmployee(emp)}
+                                  className="bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                                >
+                                  {emp.records.length} 次
+                                  <span className="text-[10px] bg-zinc-400 text-white px-1 rounded">查看</span>
+                                </button>
+                              </td>
+                              <td className="px-6 py-5">
+                                <div className="text-sm text-zinc-500">{formatHours(emp.totalMinutes)}</div>
+                                <div className="text-[10px] text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
+                              </td>
+                              <td className="px-6 py-5">
+                                <div className="flex items-center gap-2">
+                                  <div className="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      placeholder={Math.floor(emp.totalMinutes / 60).toString()}
+                                      value={isAdjusted ? Math.floor(currentMinutes / 60) : ""}
+                                      onChange={(e) => {
+                                        const h = parseInt(e.target.value.replace(/[^0-9]/g, '') || "0");
+                                        const m = currentMinutes % 60;
+                                        setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
+                                      }}
+                                      className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                    />
+                                    <span className="text-[10px] text-zinc-400 font-bold">H</span>
+                                    <span className="mx-1 text-zinc-300">|</span>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      placeholder={(emp.totalMinutes % 60).toString()}
+                                      value={isAdjusted ? (currentMinutes % 60) : ""}
+                                      onChange={(e) => {
+                                        const m = Math.min(59, parseInt(e.target.value.replace(/[^0-9]/g, '') || "0"));
+                                        const h = Math.floor(currentMinutes / 60);
+                                        setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
+                                      }}
+                                      className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                    />
+                                    <span className="text-[10px] text-zinc-400 font-bold">M</span>
+                                  </div>
+                                  {isAdjusted && (
+                                    <button 
+                                      onClick={() => {
+                                        const newManual = { ...manualMinutes };
+                                        delete newManual[emp.id];
+                                        setManualMinutes(newManual);
+                                      }}
+                                      className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
+                                      title="重設為系統計算"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-5">
+                                <div className="flex items-center gap-2">
+                                  <div className={cn(
+                                    "relative flex items-center bg-zinc-50 border rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all",
+                                    isWageAdjusted ? "border-amber-200 bg-amber-50/30" : "border-zinc-200"
+                                  )}>
+                                    <span className="text-[10px] text-zinc-400 font-bold mr-1">$</span>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      placeholder={defaultHourlyWage.toString()}
+                                      value={isWageAdjusted ? employeeWages[emp.id] : ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value.replace(/[^0-9]/g, '').replace(/^0+/, '');
+                                        if (val === '') {
+                                          const newWages = { ...employeeWages };
+                                          delete newWages[emp.id];
+                                          setEmployeeWages(newWages);
+                                        } else {
+                                          setEmployeeWages(prev => ({ ...prev, [emp.id]: Number(val) }));
+                                        }
+                                      }}
+                                      className="w-12 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-5 text-right">
+                                <div className={cn(
+                                  "text-2xl font-bold transition-colors",
+                                  isAdjusted || isWageAdjusted ? "text-blue-600" : "text-zinc-900"
+                                )}>
+                                  ${calculateSalary(currentMinutes, emp.id).toLocaleString()}
+                                </div>
+                                {(isAdjusted || isWageAdjusted) && (
+                                  <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-24 text-center">
+                            <div className="flex flex-col items-center gap-3 text-zinc-400">
+                              <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center">
+                                <Search className="w-8 h-8 opacity-20" />
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-bold text-zinc-900">找不到符合的結果</p>
+                                <p className="text-sm">請嘗試搜尋其他姓名或員工編號</p>
+                              </div>
+                              <button 
+                                onClick={() => setSearchTerm('')}
+                                className="mt-2 text-sm text-blue-500 font-bold hover:underline"
+                              >
+                                清除搜尋條件
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Mobile Card Layout */}
+                  <div className="md:hidden space-y-4 px-4 pb-4">
                     {filteredEmployees.length > 0 ? (
                       filteredEmployees.map((emp) => {
                         const currentMinutes = manualMinutes[emp.id] ?? emp.totalMinutes;
@@ -491,27 +630,48 @@ export default function App() {
                         const isWageAdjusted = employeeWages[emp.id] !== undefined;
 
                         return (
-                          <tr key={emp.id} className="hover:bg-zinc-50/50 transition-colors group">
-                            <td className="px-6 py-5">
-                              <div className="font-semibold text-lg">{emp.name}</div>
-                              <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
-                            </td>
-                            <td className="px-6 py-5">
+                          <div key={emp.id} className="bg-white border border-zinc-100 rounded-2xl p-4 shadow-sm space-y-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-bold text-lg">{emp.name}</div>
+                                <div className="text-xs font-mono text-zinc-400">{emp.id}</div>
+                              </div>
                               <button 
                                 onClick={() => setSelectedEmployee(emp)}
-                                className="bg-zinc-100 hover:bg-zinc-200 px-2.5 py-1 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
+                                className="bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5"
                               >
-                                {emp.records.length} 次
+                                {emp.records.length} 次紀錄
                                 <span className="text-[10px] bg-zinc-400 text-white px-1 rounded">查看</span>
                               </button>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="text-sm text-zinc-500">{formatHours(emp.totalMinutes)}</div>
-                              <div className="text-[10px] text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex items-center gap-2">
-                                <div className="relative flex items-center bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all">
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-zinc-50">
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold mb-1">系統計算工時</div>
+                                <div className="text-sm text-zinc-600 font-medium">{formatHours(emp.totalMinutes)}</div>
+                                <div className="text-[10px] text-zinc-400">{(emp.totalMinutes / 60).toFixed(2)} 小時</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold mb-1">預估薪資</div>
+                                <div className={cn(
+                                  "text-xl font-black",
+                                  isAdjusted || isWageAdjusted ? "text-blue-600" : "text-zinc-900"
+                                )}>
+                                  ${calculateSalary(currentMinutes, emp.id).toLocaleString()}
+                                </div>
+                                {(isAdjusted || isWageAdjusted) && (
+                                  <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-3 pt-2">
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold mb-1.5">手動調整工時</div>
+                                <div className={cn(
+                                  "relative flex items-center bg-zinc-50 border rounded-xl px-3 py-2 focus-within:border-zinc-400 transition-all",
+                                  isAdjusted ? "border-blue-200 bg-blue-50/30" : "border-zinc-200"
+                                )}>
                                   <input
                                     type="text"
                                     inputMode="numeric"
@@ -522,10 +682,10 @@ export default function App() {
                                       const m = currentMinutes % 60;
                                       setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
                                     }}
-                                    className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                    className="flex-1 min-w-0 bg-transparent text-sm font-bold text-center focus:outline-none"
                                   />
-                                  <span className="text-[10px] text-zinc-400 font-bold">H</span>
-                                  <span className="mx-1 text-zinc-300">|</span>
+                                  <span className="text-[10px] text-zinc-400 font-bold ml-1">H</span>
+                                  <span className="mx-2 text-zinc-300">|</span>
                                   <input
                                     type="text"
                                     inputMode="numeric"
@@ -536,32 +696,32 @@ export default function App() {
                                       const h = Math.floor(currentMinutes / 60);
                                       setManualMinutes(prev => ({ ...prev, [emp.id]: h * 60 + m }));
                                     }}
-                                    className="w-8 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                    className="flex-1 min-w-0 bg-transparent text-sm font-bold text-center focus:outline-none"
                                   />
-                                  <span className="text-[10px] text-zinc-400 font-bold">M</span>
+                                  <span className="text-[10px] text-zinc-400 font-bold ml-1">M</span>
+                                  {isAdjusted && (
+                                    <button 
+                                      onClick={() => {
+                                        const newManual = { ...manualMinutes };
+                                        delete newManual[emp.id];
+                                        setManualMinutes(newManual);
+                                      }}
+                                      className="ml-2 p-1 text-zinc-400 hover:text-red-500 transition-all"
+                                      title="重設為系統計算"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
-                                {isAdjusted && (
-                                  <button 
-                                    onClick={() => {
-                                      const newManual = { ...manualMinutes };
-                                      delete newManual[emp.id];
-                                      setManualMinutes(newManual);
-                                    }}
-                                    className="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                                    title="重設為系統計算"
-                                  >
-                                    <RotateCcw className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
                               </div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex items-center gap-2">
+
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold mb-1.5">指定時薪</div>
                                 <div className={cn(
-                                  "relative flex items-center bg-zinc-50 border rounded-lg px-2 py-1 focus-within:border-zinc-400 transition-all",
+                                  "relative flex items-center bg-zinc-50 border rounded-xl px-3 py-2 focus-within:border-zinc-400 transition-all",
                                   isWageAdjusted ? "border-amber-200 bg-amber-50/30" : "border-zinc-200"
                                 )}>
-                                  <span className="text-[10px] text-zinc-400 font-bold mr-1">$</span>
+                                  <span className="text-[10px] text-zinc-400 font-bold mr-2">$</span>
                                   <input
                                     type="text"
                                     inputMode="numeric"
@@ -577,50 +737,39 @@ export default function App() {
                                         setEmployeeWages(prev => ({ ...prev, [emp.id]: Number(val) }));
                                       }
                                     }}
-                                    className="w-12 bg-transparent text-sm font-bold text-center focus:outline-none"
+                                    className="flex-1 min-w-0 bg-transparent text-sm font-bold focus:outline-none"
                                   />
+                                  {isWageAdjusted && (
+                                    <span className="text-[10px] text-amber-600 font-bold">已指定</span>
+                                  )}
                                 </div>
                               </div>
-                            </td>
-                            <td className="px-6 py-5 text-right">
-                              <div className={cn(
-                                "text-2xl font-bold transition-colors",
-                                isAdjusted || isWageAdjusted ? "text-blue-600" : "text-zinc-900"
-                              )}>
-                                ${calculateSalary(currentMinutes, emp.id).toLocaleString()}
-                              </div>
-                              {(isAdjusted || isWageAdjusted) && (
-                                <div className="text-[10px] text-blue-400 font-bold uppercase tracking-tighter">已手動調整</div>
-                              )}
-                            </td>
-                          </tr>
+                            </div>
+                          </div>
                         );
                       })
                     ) : (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-24 text-center">
-                          <div className="flex flex-col items-center gap-3 text-zinc-400">
-                            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center">
-                              <Search className="w-8 h-8 opacity-20" />
-                            </div>
-                            <div className="space-y-1">
-                              <p className="font-bold text-zinc-900">找不到符合的結果</p>
-                              <p className="text-sm">請嘗試搜尋其他姓名或員工編號</p>
-                            </div>
-                            <button 
-                              onClick={() => setSearchTerm('')}
-                              className="mt-2 text-sm text-blue-500 font-bold hover:underline"
-                            >
-                              清除搜尋條件
-                            </button>
+                      <div className="py-20 text-center">
+                        <div className="flex flex-col items-center gap-3 text-zinc-400">
+                          <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center">
+                            <Search className="w-8 h-8 opacity-20" />
                           </div>
-                        </td>
-                      </tr>
+                          <div className="space-y-1">
+                            <p className="font-bold text-zinc-900">找不到符合的結果</p>
+                            <p className="text-sm">請嘗試搜尋其他姓名或員工編號</p>
+                          </div>
+                          <button 
+                            onClick={() => setSearchTerm('')}
+                            className="mt-2 text-sm text-blue-500 font-bold hover:underline"
+                          >
+                            清除搜尋條件
+                          </button>
+                        </div>
+                      </div>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+                </div>
               </div>
-            </div>
 
             {/* Info Alert */}
             <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 flex gap-3">
@@ -653,38 +802,38 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+              className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[80vh]"
             >
               {/* Modal Header */}
-              <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+              <div className="p-4 sm:p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
                 <div>
-                  <h3 className="text-2xl font-bold">{activeEmployee.name}</h3>
-                  <p className="text-sm text-zinc-500">出勤明細紀錄 ({activeEmployee.records.length} 筆)</p>
+                  <h3 className="text-xl sm:text-2xl font-bold">{activeEmployee.name}</h3>
+                  <p className="text-xs sm:text-sm text-zinc-500">出勤明細紀錄 ({activeEmployee.records.length} 筆)</p>
                 </div>
                 <button 
                   onClick={() => setSelectedEmployee(null)}
                   className="p-2 hover:bg-zinc-200 rounded-full transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
 
               {/* Modal Content */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                <div className="space-y-3 sm:space-y-4">
                   {activeEmployee.records.map((record, idx) => (
                     <div 
                       key={idx} 
                       className={cn(
-                        "flex items-center justify-between p-4 rounded-2xl border transition-all relative group/row",
+                        "flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border transition-all relative group/row gap-4 sm:gap-0",
                         record.isExcluded 
                           ? "bg-zinc-50 border-zinc-100 opacity-40 grayscale" 
                           : "bg-white border-zinc-100 hover:border-zinc-200"
                       )}
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-start sm:items-center gap-3 sm:gap-4">
                         <div className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center",
+                          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
                           record.isExcluded ? "bg-zinc-200" : (record.isNextDay ? "bg-amber-100" : "bg-zinc-100")
                         )}>
                           {record.isExcluded ? (
@@ -697,28 +846,30 @@ export default function App() {
                             )
                           )}
                         </div>
-                        <div>
-                          <div className="font-semibold flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold flex flex-wrap items-center gap-2">
                             <span className={record.isExcluded ? "line-through text-zinc-400" : ""}>
                               {record.date}
                             </span>
-                            {record.isExcluded && (
-                              <span className="text-[10px] bg-zinc-400 text-white px-1.5 py-0.5 rounded-md font-bold">
-                                不計薪
-                              </span>
-                            )}
-                            {!record.isExcluded && record.isNextDay && (
-                              <span className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded-md font-bold animate-pulse">
-                                隔日打卡
-                              </span>
-                            )}
-                            {!record.isExcluded && record.isManual && (
-                              <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-bold">
-                                已修正
-                              </span>
-                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {record.isExcluded && (
+                                <span className="text-[10px] bg-zinc-400 text-white px-1.5 py-0.5 rounded-md font-bold whitespace-nowrap">
+                                  不計薪
+                                </span>
+                              )}
+                              {!record.isExcluded && record.isNextDay && (
+                                <span className="text-[10px] bg-amber-500 text-white px-1.5 py-0.5 rounded-md font-bold animate-pulse whitespace-nowrap">
+                                  隔日打卡
+                                </span>
+                              )}
+                              {!record.isExcluded && record.isManual && (
+                                <span className="text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded-md font-bold whitespace-nowrap">
+                                  已修正
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="mt-2 flex items-center gap-3">
+                          <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3">
                             {/* Start Time Slot */}
                             <div className="flex items-center gap-2">
                               <div className={cn(
@@ -785,7 +936,7 @@ export default function App() {
                             </div>
 
                             <div className={cn(
-                              "w-4 h-px",
+                              "hidden xs:block w-3 h-px",
                               record.isExcluded ? "bg-zinc-200" : "bg-zinc-300"
                             )} />
 
@@ -870,15 +1021,15 @@ export default function App() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
+                      <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-zinc-50">
+                        <div className="text-left sm:text-right">
                           <div className={cn(
-                            "font-mono font-medium",
+                            "font-mono font-medium text-sm sm:text-base",
                             record.isExcluded ? "text-zinc-300 line-through" : "text-zinc-900"
                           )}>
                             {formatHours(record.minutes)}
                           </div>
-                          <div className="text-xs text-zinc-400">
+                          <div className="text-[10px] sm:text-xs text-zinc-400">
                             {(record.minutes / 60).toFixed(1)} 小時
                           </div>
                         </div>
@@ -886,7 +1037,7 @@ export default function App() {
                         <button
                           onClick={() => handleToggleExclude(record.id)}
                           className={cn(
-                            "p-2 rounded-xl transition-all border",
+                            "p-2 rounded-xl transition-all border shrink-0",
                             record.isExcluded 
                               ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" 
                               : "bg-white text-zinc-400 border-zinc-200 hover:text-red-500 hover:border-red-200 hover:bg-red-50"
@@ -902,20 +1053,20 @@ export default function App() {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-6 border-t border-zinc-100 bg-zinc-50/50 flex justify-between items-center">
-                <div className="flex gap-6">
+              <div className="p-4 sm:p-6 border-t border-zinc-100 bg-zinc-50/50 flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0">
+                <div className="flex gap-4 sm:gap-6 w-full sm:w-auto justify-around sm:justify-start">
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">總計時數</div>
-                    <div className="text-lg font-bold">{formatHours(manualMinutes[activeEmployee.id] ?? activeEmployee.totalMinutes)}</div>
+                    <div className="text-base sm:text-lg font-bold">{formatHours(manualMinutes[activeEmployee.id] ?? activeEmployee.totalMinutes)}</div>
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">預估薪資</div>
-                    <div className="text-lg font-bold text-emerald-600">${calculateSalary(manualMinutes[activeEmployee.id] ?? activeEmployee.totalMinutes, activeEmployee.id).toLocaleString()}</div>
+                    <div className="text-base sm:text-lg font-bold text-emerald-600">${calculateSalary(manualMinutes[activeEmployee.id] ?? activeEmployee.totalMinutes, activeEmployee.id).toLocaleString()}</div>
                   </div>
                 </div>
                 <button 
                   onClick={() => setSelectedEmployee(null)}
-                  className="px-6 py-2 bg-zinc-900 text-white rounded-xl font-semibold hover:bg-zinc-800 transition-colors"
+                  className="w-full sm:w-auto px-8 py-3 bg-zinc-900 text-white rounded-2xl font-bold hover:bg-zinc-800 transition-all active:scale-95"
                 >
                   關閉
                 </button>
