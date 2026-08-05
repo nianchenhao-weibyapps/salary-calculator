@@ -15,15 +15,90 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-interface AttendanceRow {
-  項次: string;
-  姓名: string;
-  員工編號: string;
-  打卡日期: string;
-  上班時間: string;
-  下班時間: string;
-  '打卡機號(上班／下班)': string;
+function getRowVal(row: Record<string, any>, keys: string[]): string {
+  if (!row) return '';
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+      return String(row[k]).trim();
+    }
+    const found = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+    if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== '') {
+      return String(row[found]).trim();
+    }
+  }
+  return '';
 }
+
+function extractDateString(rawStart: string, rawDate?: string): string {
+  if (rawDate && rawDate.trim()) {
+    return rawDate.trim();
+  }
+  if (rawStart) {
+    const match = rawStart.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})/);
+    if (match) {
+      return match[1].replace(/\//g, '-');
+    }
+  }
+  return '未標示日期';
+}
+
+function extractTimeString(rawTime: string): string {
+  if (!rawTime) return '';
+  const cleaned = rawTime.replace(/\(.*\)/, '').trim();
+  const match = cleaned.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+  if (match) {
+    return match[1];
+  }
+  return cleaned;
+}
+
+function parseAttendanceTime(rawTime: string): { dateObj: Date | null; isNextDayTag: boolean } {
+  if (!rawTime) return { dateObj: null, isNextDayTag: false };
+
+  const isNextDayTag = rawTime.includes('隔日');
+  const cleaned = rawTime.replace(/\(.*\)/, '').trim();
+
+  // 1. Full datetime format: "2026-07-01 16:22:28", "2026/07/01 16:22:28", "2026-07-01T16:22:28"
+  const fullMatch = cleaned.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (fullMatch) {
+    const [, y, m, d, hh, mm, ss] = fullMatch;
+    const dateObj = new Date(
+      parseInt(y, 10),
+      parseInt(m, 10) - 1,
+      parseInt(d, 10),
+      parseInt(hh, 10),
+      parseInt(mm, 10),
+      ss ? parseInt(ss, 10) : 0
+    );
+    return { dateObj, isNextDayTag };
+  }
+
+  // 2. Time only format: "16:22:28", "16:22"
+  const timeMatch = cleaned.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (timeMatch) {
+    const [, hh, mm, ss] = timeMatch;
+    const now = new Date();
+    const dateObj = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      parseInt(hh, 10),
+      parseInt(mm, 10),
+      ss ? parseInt(ss, 10) : 0
+    );
+    return { dateObj, isNextDayTag };
+  }
+
+  // 3. Fallback date parsing
+  const parsed = parse(cleaned, 'HH:mm', new Date());
+  if (!isNaN(parsed.getTime())) {
+    return { dateObj: parsed, isNextDayTag };
+  }
+
+  return { dateObj: null, isNextDayTag };
+}
+
+type AttendanceRow = Record<string, any>;
 
 interface EmployeeSummary {
   id: string;
@@ -58,10 +133,14 @@ export default function App() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      transformHeader: (header) => header.replace(/^\ufeff/, '').trim(),
       complete: (results) => {
-        const parsedData = results.data as AttendanceRow[];
-        // Basic validation: check if required headers exist
-        if (parsedData.length > 0 && parsedData[0].姓名 && parsedData[0].上班時間) {
+        const parsedData = (results.data || []) as AttendanceRow[];
+        const firstRow = parsedData[0] || {};
+        const hasName = getRowVal(firstRow, ['姓名', '員工姓名', 'Name', 'name']);
+        const hasStart = getRowVal(firstRow, ['上班時間', '上班', '打卡上班', 'StartTime', 'start_time']);
+
+        if (parsedData.length > 0 && hasName && hasStart) {
           setData(parsedData);
         } else {
           alert('CSV 格式不正確，請確認包含「姓名」、「上班時間」、「下班時間」等欄位。');
@@ -99,61 +178,69 @@ export default function App() {
     const summaries: Record<string, EmployeeSummary> = {};
 
     data.forEach((row, index) => {
-      const id = row.員工編號 || row.姓名;
-      const name = row.姓名;
+      const name = getRowVal(row, ['姓名', '員工姓名', 'Name', 'name']);
+      const empId = getRowVal(row, ['員工編號', '員工代號', '員工ID', '編號', 'ID', 'id']);
+      const rawStart = getRowVal(row, ['上班時間', '上班', '打卡上班', 'StartTime', 'start_time']);
+      const rawEnd = getRowVal(row, ['下班時間', '下班', '打卡下班', 'EndTime', 'end_time']);
+      const rawDate = getRowVal(row, ['打卡日期', '日期', 'Date', 'date']);
+
+      if (!name && !rawStart && !rawEnd) return;
+
+      const id = empId || name || `emp-${index}`;
       const recordId = `record-${index}`;
-      
+
       if (!summaries[id]) {
-        summaries[id] = { id, name, totalMinutes: 0, records: [] };
+        summaries[id] = { id, name: name || '未知名稱', totalMinutes: 0, records: [] };
       }
 
       try {
-        // Check for manual adjustment first
         const adjustments = manualRecordAdjustments[recordId] || {};
-        const effectiveStart = adjustments.start || row.上班時間;
-        const effectiveEnd = adjustments.end || row.下班時間;
+        const effectiveStart = adjustments.start || rawStart;
+        const effectiveEnd = adjustments.end || rawEnd;
         const isExcluded = adjustments.excluded || false;
 
-        // Clean time strings: remove "(隔日)" and any extra spaces
-        const cleanStart = effectiveStart?.replace(/\(.*\)/, '').trim();
-        const cleanEnd = effectiveEnd?.replace(/\(.*\)/, '').trim();
-
-        if (!cleanStart || !cleanEnd) {
+        if (!effectiveStart || !effectiveEnd) {
           console.warn(`Row ${index} is missing start or end time:`, row);
           return;
         }
 
-        const startTime = parse(cleanStart, 'HH:mm', new Date());
-        const endTime = parse(cleanEnd, 'HH:mm', new Date());
-        
-        let minutes = differenceInMinutes(endTime, startTime);
-        let isNextDay = effectiveEnd?.includes('隔日');
-        
-        // Handle shifts crossing midnight (if end time is earlier than start time)
-        if (minutes < 0 || isNextDay) {
-          if (minutes < 0) {
-            minutes += 24 * 60;
-            isNextDay = true;
-          } else if (isNextDay) {
-            minutes += 24 * 60;
-          }
-        }
+        const dateDisplay = extractDateString(effectiveStart, rawDate);
+        const startInfo = parseAttendanceTime(effectiveStart);
+        const endInfo = parseAttendanceTime(effectiveEnd);
 
-        if (!isNaN(minutes)) {
-          if (!isExcluded) {
-            summaries[id].totalMinutes += minutes;
+        if (startInfo.dateObj && endInfo.dateObj) {
+          let minutes = differenceInMinutes(endInfo.dateObj, startInfo.dateObj);
+          let isNextDay = startInfo.isNextDayTag || endInfo.isNextDayTag;
+
+          if (endInfo.dateObj.getDate() !== startInfo.dateObj.getDate()) {
+            isNextDay = true;
           }
-          
-          summaries[id].records.push({
-            id: recordId,
-            date: row.打卡日期,
-            start: effectiveStart,
-            end: effectiveEnd,
-            minutes,
-            isNextDay: !!isNextDay,
-            isManual: !!adjustments.start || !!adjustments.end,
-            isExcluded
-          });
+
+          if (minutes < 0 || isNextDay) {
+            if (minutes < 0) {
+              minutes += 24 * 60;
+              isNextDay = true;
+            } else if (isNextDay && startInfo.dateObj.getDate() === endInfo.dateObj.getDate()) {
+              minutes += 24 * 60;
+            }
+          }
+
+          if (!isNaN(minutes)) {
+            if (!isExcluded) {
+              summaries[id].totalMinutes += minutes;
+            }
+
+            summaries[id].records.push({
+              id: recordId,
+              date: dateDisplay,
+              start: effectiveStart,
+              end: effectiveEnd,
+              minutes,
+              isNextDay: !!isNextDay,
+              isManual: !!adjustments.start || !!adjustments.end,
+              isExcluded
+            });
+          }
         }
       } catch (e) {
         console.warn(`Row ${index} has invalid time format:`, row);
