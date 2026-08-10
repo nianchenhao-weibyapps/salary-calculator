@@ -10,6 +10,7 @@ import { Upload, DollarSign, Clock, Users, FileText, Trash2, AlertCircle, X, Cal
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
+import { ChatbaseWidget } from './components/ChatbaseWidget';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -1214,6 +1215,9 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Chatbase AI 客服組件 */}
+      <ChatbaseWidget />
     </div>
   );
 }
