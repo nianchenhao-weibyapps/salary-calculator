@@ -10,7 +10,6 @@ import { Upload, DollarSign, Clock, Users, FileText, Trash2, AlertCircle, X, Cal
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChatbaseWidget } from './components/ChatbaseWidget';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -349,7 +348,7 @@ export default function App() {
           <div className="space-y-2">
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-900 leading-tight">員工出勤薪資計算</h1>
             <p className="text-sm sm:text-base text-zinc-500">上傳 POS 匯出的 CSV 檔案，快速結算工時與薪資。</p>
-            <p className="text-amber-600 text-[10px] sm:text-xs font-medium">※ 此工具僅供計算參考，實際薪資計算請店家再自行核對確認</p>
+            <p className="text-amber-600 text-xs sm:text-sm md:text-base font-medium">※ 此工具僅供計算參考，實際薪資計算請店家再自行核對確認</p>
           </div>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
@@ -1215,9 +1214,6 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Chatbase AI 客服組件 */}
-      <ChatbaseWidget />
     </div>
   );
 }
